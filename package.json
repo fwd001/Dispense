@@ -1,0 +1,13 @@
+{
+  "name": "json-manager",
+  "version": "1.0.0",
+  "description": "最简单稳定的 Node.js JSON 管理服务（上传/预览/删除/提交研判）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "private": true
+}

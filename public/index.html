@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON 管理服务</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif; background:#f5f5f5; color:#1f2f3d; margin:0; padding:24px 16px 60px; line-height:1.6; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    h1 { text-align:center; margin:0 0 6px; font-size:26px; }
+    .sub { text-align:center; color:#8c8c8c; font-size:13px; margin-bottom:22px; }
+    .card { background:#fff; border:1px solid #e5e5e5; border-radius:10px; padding:18px; margin-bottom:18px; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+    .card h2 { margin:0 0 12px; font-size:16px; color:#333; }
+    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+    input[type=text], textarea { border:1px solid #d9d9d9; border-radius:6px; padding:8px 10px; font-size:14px; width:100%; }
+    textarea { min-height:120px; font-family:Consolas,monospace; font-size:12px; }
+    .btn { padding:8px 16px; border:none; border-radius:6px; font-size:14px; font-weight:500; cursor:pointer; color:#fff; background:#1677ff; }
+    .btn:hover { background:#4096ff; }
+    .btn.gray { background:#8c8c8c; }
+    .btn.gray:hover { background:#a6a6a6; }
+    .btn.red { background:#ff4d4f; }
+    .btn.red:hover { background:#ff7875; }
+    .btn.small { padding:5px 10px; font-size:13px; }
+    .msg { margin-top:10px; font-size:13px; white-space:pre-wrap; }
+    .msg.ok { color:#52c41a; }
+    .msg.err { color:#ff4d4f; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid #f0f0f0; font-size:14px; }
+    th { color:#8c8c8c; font-weight:600; }
+    a { color:#1677ff; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .empty { color:#bbb; text-align:center; padding:20px 0; }
+    /* 复制链接弹窗 */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:1000; }
+    .modal { background:#fff; border-radius:10px; padding:20px; width:min(560px, 92vw); box-shadow:0 8px 24px rgba(0,0,0,.2); }
+    .modal-title { font-size:16px; font-weight:600; margin-bottom:12px; }
+    .modal input { width:100%; padding:10px; border:1px solid #d9d9d9; border-radius:6px; font-size:14px; font-family:Consolas,monospace; }
+    .modal-status { margin-top:10px; font-size:13px; }
+    .modal-status.ok { color:#52c41a; }
+    .modal-status.warn { color:#fa8c16; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📦 JSON 管理服务</h1>
+  <div class="sub">上传 / 预览 / 删除 · 数据保存在项目 data/ 目录</div>
+
+  <!-- 上传 -->
+  <div class="card">
+    <h2>① 上传 JSON</h2>
+    <div class="row">
+      <input type="text" id="name" placeholder="文件名（可留空，默认取 meta.title）" style="flex:1;min-width:220px;">
+      <input type="file" id="file" accept=".json,application/json" style="width:auto;">
+    </div>
+    <textarea id="content" placeholder='在此粘贴 JSON，或选择左侧 .json 文件。例如 {"view":"exam-bank", ...}'></textarea>
+    <div style="margin-top:10px;">
+      <button class="btn" onclick="doUpload()">⬆️ 上传</button>
+    </div>
+    <div class="msg" id="upMsg"></div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="card">
+    <h2>② 已存储的 JSON</h2>
+    <div class="sub" style="text-align:left;margin:0 0 8px;">每份 JSON 都有一个可被前端「远程导入」的链接（支持跨域）。</div>
+    <table>
+      <thead><tr><th>文件名</th><th style="width:120px;">预览链接</th><th style="width:220px;">操作</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none;">暂无数据，先上传一份吧。</div>
+  </div>
+
+</div>
+
+<!-- 复制链接弹窗 -->
+<div class="modal-overlay" id="copyModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">复制链接</div>
+    <input type="text" id="copyInput" readonly autofocus onfocus="this.select()" onclick="this.select()">
+    <div class="modal-status" id="copyStatus"></div>
+    <div class="modal-actions">
+      <button class="btn gray" onclick="retryCopy()">再复制一次</button>
+      <button class="btn" onclick="closeCopy()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var upMsg = document.getElementById('upMsg');
+  function showMsg(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  // 选择文件后读入文本框
+  document.getElementById('file').addEventListener('change', function(e){
+    var f = e.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){ document.getElementById('content').value = r.result; if(!document.getElementById('name').value){ document.getElementById('name').value = f.name.replace(/\.json$/i,''); } };
+    r.readAsText(f, 'utf8');
+  });
+
+  // 上传
+  async function doUpload() {
+    var name = document.getElementById('name').value.trim();
+    var content = document.getElementById('content').value.trim();
+    if (!content) { showMsg(upMsg, '请先填写 JSON 内容', false); return; }
+    try { JSON.parse(content); } catch(e) { showMsg(upMsg, 'JSON 不合法: ' + e.message, false); return; }
+    try {
+      var res = await fetch('/api/upload', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: name, content: content }) });
+      var j = await res.json();
+      if (j.ok) { showMsg(upMsg, '上传成功: ' + j.name + '  → ' + location.origin + j.url, true); document.getElementById('content').value=''; document.getElementById('name').value=''; loadList(); }
+      else showMsg(upMsg, '上传失败: ' + j.error, false);
+    } catch(e) { showMsg(upMsg, '请求失败: ' + e.message, false); }
+  }
+
+  // 复制链接：弹出一个输入框，链接已填入并自动选中；若浏览器支持则同时写入系统剪贴板
+  function copyLink(name) {
+    var url = location.origin + '/data/' + encodeURIComponent(name);
+    openCopyModal(url);
+  }
+
+  function openCopyModal(url) {
+    var overlay = document.getElementById('copyModal');
+    var input = document.getElementById('copyInput');
+    overlay.style.display = 'flex';
+    input.value = url;
+    input.focus(); input.select();
+    document.getElementById('copyStatus').textContent = '正在尝试写入剪贴板…';
+    document.getElementById('copyStatus').className = 'modal-status';
+    writeClipboard(url);
+  }
+
+  // 优先使用现代剪贴板 API；不支持或失败则回退到 execCommand，并保留输入框手动复制
+  function writeClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function(){ copyOk(true); })
+        .catch(function(){ legacyCopy(text); copyOk(false); });
+    } else {
+      legacyCopy(text);
+      copyOk(false);
+    }
+  }
+
+  function legacyCopy(text) {
+    try {
+      var input = document.getElementById('copyInput');
+      if (text != null) input.value = text;
+      input.focus(); input.select();
+      return document.execCommand('copy');
+    } catch(e) { return false; }
+  }
+
+  function retryCopy() {
+    var ok = legacyCopy(null);
+    copyOk(ok);
+  }
+
+  function copyOk(ok) {
+    var status = document.getElementById('copyStatus');
+    if (ok) { status.textContent = '✅ 已复制到系统剪贴板'; status.className = 'modal-status ok'; }
+    else { status.textContent = '自动复制失败，请按 Ctrl+C / Cmd+C 手动复制（文本已选中）'; status.className = 'modal-status warn'; }
+  }
+
+  function closeCopy() { document.getElementById('copyModal').style.display = 'none'; }
+
+  // 删除
+  async function doDelete(name) {
+    if (!confirm('确定删除 ' + name + ' ？')) return;
+    var res = await fetch('/api/delete/' + encodeURIComponent(name), { method:'DELETE' });
+    var j = await res.json();
+    if (j.ok) loadList(); else alert('删除失败: ' + j.error);
+  }
+
+  // 列表
+  async function loadList() {
+    var res = await fetch('/api/list'); var j = await res.json();
+    var tb = document.getElementById('listBody'); tb.innerHTML = '';
+    document.getElementById('empty').style.display = (j.files && j.files.length) ? 'none' : 'block';
+    (j.files || []).forEach(function(f){
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(f) + '</td>' +
+        '<td><a href="/data/' + encodeURIComponent(f) + '" target="_blank">打开</a> · <a href="javascript:void(0)" onclick="copyLink(\'' + esc(f).replace(/'/g,"\\'") + '\')">复制</a></td>' +
+        '<td><button class="btn small red" onclick="doDelete(\'' + esc(f).replace(/'/g,"\\'") + '\')">🗑 删除</button></td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  loadList();
+</script>
+</body>
+</html>
