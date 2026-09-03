@@ -1,13 +1,22 @@
 {
-  "name": "json-manager",
-  "version": "1.0.0",
-  "description": "最简单稳定的 Node.js JSON 管理服务（上传/预览/删除/提交研判）",
+  "name": "dispense",
+  "version": "2.0.0",
+  "description": "Dispense · 本地文件型配置 / 文本 / 文件下发平台（上传≠发布，一个应用一个永久链接，含回收站），零第三方依赖",
   "main": "server.js",
+  "keywords": [
+    "config-delivery",
+    "config-dispatch",
+    "static-config",
+    "file-delivery",
+    "zero-dependency",
+    "nodejs"
+  ],
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
-    "node": ">=14"
+    "node": ">=18"
   },
   "private": true
 }

@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+
+# 本地数据目录（应用 / 文件 / 回收站 / 日志 / 索引）
+data/
+
+# 旧版遗留目录
+trash/
