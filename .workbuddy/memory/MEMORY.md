@@ -25,9 +25,12 @@ Application (id, name, token, currentFileId)
 - 回收站：删除=移动；启动立即清理一次，之后每小时扫描（`setInterval` + `unref`，不为文件建 Timer）。
 - 所有限制（应用数/单应用文件数/总文件数/单文件大小/回收站 TTL）均走 `config.js` 环境变量，不硬编码。
 
-## 下发端点健壮性（用户明确要求）
-`GET /d/:token` 是公开端点，遇以下情况一律返回 **200 + 空 body + Content-Type: text/plain**，
-**绝不报错、绝不崩溃**：未知链接 / 未设当前文件 / 实体缺失 / 任何异常（catch 降级空响应）。
+## 下发端点边界行为（用户明确要求）
+`GET /d/:token` 是公开端点，**绝不崩溃**，按状态区分：
+- 未知链接（token 查不到应用）→ **200 + 空 body + text/plain**（不报错）。
+- 应用已暂停（未设当前文件）→ **404**，错误码 `NO_CURRENT_FILE`（「当前没有可下发文件」）。
+- 当前文件实体缺失 → **404**，错误码 `FILE_BROKEN`。
+- 任何意外异常 → catch 降级为 200 空响应（不报 500、不崩溃）。
 `Content-Type` 按下发名（downloadName）后缀决定，无后缀兜底 `text/plain`；`.json`→`application/json` 等。
 
 ## 测试
