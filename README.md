@@ -133,12 +133,11 @@ data/
 `Cache-Control: no-cache, must-revalidate` / `ETag` / `Last-Modified` / CORS `*`。
 加 `?dl=1` 可强制附件下载。
 
-**空响应（健壮性）**：`/d/:token` 是公开端点。遇到以下情况一律返回
-`200 + 空 body + Content-Type: text/plain`（不报错、不崩溃）：
+**边界行为（公开端点，绝不崩溃）**：
 
-- 链接不存在（token 查不到应用）
-- 应用存在但还没设置「当前下发文件」
-- 当前文件实体缺失（损坏 / 被移走）
+- **链接不存在**（token 查不到应用）→ `200 + 空 body + text/plain`（不报错）
+- **应用已暂停**（未设当前下发文件）→ `404`，错误码 `NO_CURRENT_FILE`（「当前没有可下发文件」）
+- **当前文件实体缺失**（损坏 / 被移走）→ `404`，错误码 `FILE_BROKEN`
 
 `Content-Type` 按**下发名（downloadName）的后缀**决定，`text/plain` 为兜底；
 `.json` → `application/json`、`.yaml/.yml` → `application/yaml`、`.xml` → `application/xml`、
