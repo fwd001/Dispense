@@ -105,3 +105,39 @@ pm2 startup                    # 开机自启（按提示执行输出的命令�
 
 > 只要没有「有公网 + 7×24」的宿主，任何平台都替代不了服务器这一环——这是 Dispense
 > 本地文件型存储模型决定的，不是部署技巧能绕开的。
+
+---
+
+## 七、免费服务器实测选型（2026-09 核实）
+
+**一句话结论：国内大厂（腾讯/阿里/华为）没有「长期免费」服务器，只有新用户 1–3 个月试用；
+真正「永久免费」的常驻计算只有海外 Oracle Cloud Always Free（首选）与 Google Cloud e2-micro。**
+
+| 方案 | 免费额度 | 期限 | 能否托 Dispense | 主要限制 |
+|---|---|---|---|---|
+| **Oracle Cloud Always Free（推荐）** | ARM Ampere A1：**2 OCPU + 12 GB**（2026-06 起由 4C/24G 减半）+ 2 台 AMD 微型实例（各 1 GB）；200 GB 块存储；10 TB/月出站；2 个公网 IP | **永久** | ✅ 富余 | 需外币信用卡验证（预扣 ~$1 退回）；注册地=home region 不可改；ARM 缺货需多试；**闲置 7 天可能被回收** |
+| Google Cloud e2-micro | 1 台 e2-micro（约 1 GB），30 GB HDD | 永久（限美区 us-west1 等） | ✅ 够用 | 国内直连延迟 ~200ms；1 GB 出站流量/月很少；需绑卡 |
+| AWS / Azure 免费层 | t3.micro / B1s 各 1 台 | **12 个月**（到期转付费） | 短期可以 | 不是长期；到期前务必释放防扣费 |
+| 腾讯云 / 阿里云 | 新用户试用 1–3 个月；首年特惠 ¥38–118/年 | 试用 | 试用期可以 | 到期续费才是真实价格 |
+| 国内免费 IDC（阿贝云/三丰云等） | 1 核 1 G | 号称永久 | 理论上 | **真实性/稳定性风险高，多为引流营销，不建议承载数据服务** |
+
+### Oracle 申请与部署要点（与本文 workflow 无缝衔接）
+
+1. **注册**：`oracle.com/cloud/free`。国内用户请**直连注册、用真实国内地址 + 国内 Visa/Mastercard**
+   （不支持银联；用 VPN + 假地址必被拒）。预授权扣 $1 后数日退回，不产生费用。
+2. **选区**：home region 选定后不可改。国内访问延迟排序上优先考虑**韩国春川 / 日本东京 / 大阪**，
+   但这些区域 A1 常缺货（报 `out of host capacity` 就换可用域或改天再试，也可先开 AMD 微型实例应急）。
+3. **开实例**：Compute → Create instance → Shape 选 **Ampere → VM.Standard.A1.Flex**，
+   建议 **2 OCPU / 12 GB**（别超免费上限，超了会被计费/终止）；Boot volume 默认 ≥47 GB；上传 SSH 公钥。
+   Ubuntu 镜像默认用户 `ubuntu`。ARM64 对 Node ≥18 原生支持，本项目零依赖，无兼容问题。
+4. **放行端口（两步，缺一不可）**：
+   - 控制台：VCN → Security List → Add Ingress Rules，放行 `8112/tcp`（以及 SSH `22/tcp`）；
+   - 实例内：`sudo iptables -F`（或 `ufw allow 8112`）——Oracle 自带 iptables 规则默认全挡。
+5. **接线**：实例上按本文第三节初始化（clone + `pm2 start` + `pm2 save` + `pm2 startup`），
+   然后在 GitHub 配好第四节 secrets —— 你现有的 `.github/workflows/deploy.yml` 即可接管后续每次 push 自动部署。
+   访问地址就是 `http://<实例公网IP>:8112`，**不需要域名、不需要备案**。
+6. **防闲置回收**（官方规则：7 天内 CPU / 网络 / 内存的 95 分位均 <20% 即视为闲置）：
+   Dispense 只要有客户端在拉配置就天然安全；低频使用时用 **UptimeRobot（免费，5 分钟一次）**
+   定时 ping `http://<IP>:8112/d/<token>` 保持活跃即可。
+7. **数据备份**：免费资源不承诺 SLA，Oracle 也可能调整 Always Free 策略（2026-06 减半即是先例）。
+   建议定期把 `data/` 打包下载：`tar -czf data-backup.tgz /opt/dispense/data`，或 `rsync` 到本地/GitHub。

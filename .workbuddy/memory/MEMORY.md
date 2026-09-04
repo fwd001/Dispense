@@ -43,7 +43,12 @@ Application (id, name, token, currentFileId)
 
 ## 部署形态（2026-09-04 决策）
 - **GitHub Actions 不能跑服务本体**（临时 VM：≤6h、磁盘即焚、无公网入站），只作 push 部署扳机；
-  宿主需 7×24 公网服务器。用户当前**暂无服务器**（有服务器后走腾讯/阿里轻量云推荐路线）。
+  宿主需 7×24 公网服务器。
+- **免费选型结论（2026-09 核实）**：国内大厂无长期免费（仅 1–3 月试用）；永久免费常驻首选
+  **Oracle Cloud Always Free**（ARM A1 自 2026-06 起 2 OCPU/12GB，200GB 盘，10TB 出站；需外币卡验证、
+  home region 不可改、闲置 7 天可回收），备选 Google e2-micro（美区）。用户暂无服务器，倾向 Oracle。
 - 预案已备：`.github/workflows/deploy.yml`（SSH→git pull→npm test→pm2 reload，secrets 未配自动跳过）、
-  `docs/DEPLOY.md`（初始化/secrets/回滚）。PM2 进程名 = `dispense`（别名 json-manager 已废弃）。
+  `docs/DEPLOY.md`（七节：初始化/secrets/回滚/**免费服务器选型与 Oracle 要点**）。PM2 进程名 = `dispense`。
 - data/ 在 .gitignore，git pull 永不覆盖线上数据，可放心用 Actions 自动部署。
+- **坑**：GitHub Actions job 级 `if` 不能引用 secrets（workflow 判无效 run failure 零 job）；
+  guard 放 step 的 env 求值 + `if: env.X == 'true'`（已在远端验证 success）。
