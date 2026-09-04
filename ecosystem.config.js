@@ -7,7 +7,7 @@
 module.exports = {
   apps: [
     {
-      name: 'json-manager',
+      name: 'dispense',
       script: './server.js',
       cwd: __dirname,
       instances: 1,

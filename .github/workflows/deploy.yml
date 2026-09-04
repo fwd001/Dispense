@@ -1,0 +1,62 @@
+# Dispense · 自动部署到服务器
+#
+# 触发：push 到 main（或手动 workflow_dispatch）
+# 行为：SSH 登录服务器 → git pull --ff-only → npm test → pm2 reload（保活重启）
+#
+# 前置条件（否则本 job 自动跳过，不影响 push 绿灯）：
+#   在 GitHub 仓库 Settings → Secrets and variables → Actions 配置：
+#     DEPLOY_HOST     服务器公网 IP 或域名
+#     DEPLOY_USER     SSH 用户名（如 root / ubuntu）
+#     DEPLOY_SSH_KEY  私钥全文（服务器上的 ~/.ssh/authorized_keys 需包含其公钥）
+#     DEPLOY_PATH     服务器上 git clone 的绝对路径（如 /opt/dispense）
+#     DEPLOY_PORT     可选，SSH 端口，默认 22
+#
+# 注意：data/ 已被 .gitignore 排除，git pull 永不触碰线上数据。
+# 首次部署（服务器上还没有代码时）见 docs/DEPLOY.md 的「一次性初始化」。
+
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # secrets 未配齐前跳过，避免用空值误连
+    if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests (零依赖，直接跑)
+        run: npm test
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: |
+            set -e
+            echo "==> 拉取最新代码（data/ 已忽略，不影响线上数据）"
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git pull --ff-only origin main
+
+            echo "==> 跑一遍测试"
+            npm test
+
+            echo "==> 重启服务（存在则 reload，否则首次 start）"
+            pm2 reload dispense --update-env || pm2 start ecosystem.config.js --only dispense
+            pm2 save
+            pm2 status dispense

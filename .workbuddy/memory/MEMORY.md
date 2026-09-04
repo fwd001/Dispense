@@ -40,3 +40,10 @@ Application (id, name, token, currentFileId)
 =4000 规模：重建索引 <1s、下发 median <20ms、索引 <2MB）。
 注意：本沙箱 fsync 极慢（≈3 文件/秒），批量导入走真实上传路径在此环境无法灌入数千文件；
 性能测试用「非 fsync 快速铺数据」做夹具来测运行时 SLA（下发延迟/重建耗时），属环境限制非产品问题。
+
+## 部署形态（2026-09-04 决策）
+- **GitHub Actions 不能跑服务本体**（临时 VM：≤6h、磁盘即焚、无公网入站），只作 push 部署扳机；
+  宿主需 7×24 公网服务器。用户当前**暂无服务器**（有服务器后走腾讯/阿里轻量云推荐路线）。
+- 预案已备：`.github/workflows/deploy.yml`（SSH→git pull→npm test→pm2 reload，secrets 未配自动跳过）、
+  `docs/DEPLOY.md`（初始化/secrets/回滚）。PM2 进程名 = `dispense`（别名 json-manager 已废弃）。
+- data/ 在 .gitignore，git pull 永不覆盖线上数据，可放心用 Actions 自动部署。
