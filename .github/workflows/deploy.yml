@@ -1,15 +1,20 @@
 # Dispense · 自动部署到服务器
 #
 # 触发：push 到 main（或手动 workflow_dispatch）
-# 行为：SSH 登录服务器 → git pull --ff-only → npm test → pm2 reload（保活重启）
+# 行为：先跑 npm test（每次 push 的 CI 回归）→ secrets 配齐时 SSH 登录服务器
+#       git pull --ff-only → pm2 reload（保活重启）
 #
-# 前置条件（否则本 job 自动跳过，不影响 push 绿灯）：
-#   在 GitHub 仓库 Settings → Secrets and variables → Actions 配置：
+# 注意：secrets 未配置时 SSH 部署步骤自动跳过（npm test 仍执行，push 保持绿灯）。
+#   在 GitHub 仓库 Settings → Secrets and variables → Actions 配置后即生效：
 #     DEPLOY_HOST     服务器公网 IP 或域名
 #     DEPLOY_USER     SSH 用户名（如 root / ubuntu）
 #     DEPLOY_SSH_KEY  私钥全文（服务器上的 ~/.ssh/authorized_keys 需包含其公钥）
 #     DEPLOY_PATH     服务器上 git clone 的绝对路径（如 /opt/dispense）
 #     DEPLOY_PORT     可选，SSH 端口，默认 22
+#
+# 为什么 guard 放在 step 层而不是 job 层：GitHub 规定 job 级 if 只能引用
+# github/needs/vars/inputs，引用 secrets 会使整个 workflow 判为无效（run 直接失败）。
+# step 级 env/if 才允许使用 secrets。
 #
 # 注意：data/ 已被 .gitignore 排除，git pull 永不触碰线上数据。
 # 首次部署（服务器上还没有代码时）见 docs/DEPLOY.md 的「一次性初始化」。
@@ -31,8 +36,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # secrets 未配齐前跳过，避免用空值误连
-    if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +43,10 @@ jobs:
       - name: Run tests (零依赖，直接跑)
         run: npm test
 
-      - name: Deploy via SSH
+      - name: Deploy via SSH (secrets 未配齐时自动跳过)
+        if: env.CONFIGURED == 'true'
+        env:
+          CONFIGURED: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}

@@ -4,7 +4,7 @@
 > 服务必须常驻在一台有公网、7×24 开机的机器上（Linux 服务器 / 云主机），
 > Actions 在每次 push 后帮你自动「拉代码 → 测测试 → 重启」。仓库里
 > [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) 已备好，
-> 配好 secrets 即生效（未配置时 job 自动跳过，不影响 push 绿灯）。
+> 配好 secrets 即生效（未配置时仅跳过 SSH 部署步骤，`npm test` 仍会跑，push 保持绿灯）。
 
 ---
 
