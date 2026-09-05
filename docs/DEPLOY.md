@@ -141,3 +141,6 @@ pm2 startup                    # 开机自启（按提示执行输出的命令�
    定时 ping `http://<IP>:8112/d/<token>` 保持活跃即可。
 7. **数据备份**：免费资源不承诺 SLA，Oracle 也可能调整 Always Free 策略（2026-06 减半即是先例）。
    建议定期把 `data/` 打包下载：`tar -czf data-backup.tgz /opt/dispense/data`，或 `rsync` 到本地/GitHub。
+
+> Oracle 的**完整申请流程（含如何把付费可能性全部关掉）**见
+> [`docs/ORACLE-FREE-TIER.md`](./ORACLE-FREE-TIER.md)。
